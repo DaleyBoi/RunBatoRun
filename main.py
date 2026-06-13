@@ -6,6 +6,7 @@ from player import Player
 from obstacle import Obstacle
 from game_stats import GameStats
 from menu import MenuScreen
+from pause import PauseScreen
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "images")
 
@@ -89,9 +90,12 @@ class EndlessRunner:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
-            elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_q, pygame.K_ESCAPE):
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_q:
                     sys.exit()
+                elif event.key == pygame.K_ESCAPE:
+                    if self.stats.game_active:
+                        self._pause_game()
                 elif event.key == pygame.K_SPACE:
                     if self.stats.game_active:
                         self.player.jump()
@@ -167,6 +171,17 @@ class EndlessRunner:
         self.player.velocity_y  = 0
         self.spawn_timer        = 0
 
+    def _pause_game(self):
+        pause  = PauseScreen(self.screen, self.clock)
+        result = pause.run()
+        if result == "menu":
+            self._restart_game()
+            from menu import MenuScreen
+            menu   = MenuScreen(self.screen, self.clock)
+            action = menu.run()
+            if action == "quit":
+                pygame.quit()
+                sys.exit()
 
 if __name__ == "__main__":
     game = EndlessRunner()
