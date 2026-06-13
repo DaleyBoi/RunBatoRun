@@ -55,8 +55,9 @@ class EndlessRunner:
         self.stats       = GameStats()
         self.obstacles   = []
         self.spawn_timer = 0
-        self.font        = pygame.font.SysFont(None, 48)
-        self.small_font  = pygame.font.SysFont(None, 32)
+        font_path       = os.path.join(os.path.dirname(__file__), "assets", "fonts", "PressStart2P.ttf")
+        self.font       = pygame.font.Font(font_path, 20)
+        self.small_font = pygame.font.Font(font_path, 12)
 
     def _load_background(self):
         def load(name):
