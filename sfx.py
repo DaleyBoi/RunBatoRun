@@ -7,9 +7,9 @@ _sounds = {}
 
 def load():
     files = {
-        "jump":     "jump.wav",
+        "jump":     "jump.mp3",
         "hit":      "hit.mp3",
-        "gameover": "gameover.wav",
+        "gameover": "gameover.mp3",
     }
     for key, filename in files.items():
         path = os.path.join(AUDIO_DIR, filename)
