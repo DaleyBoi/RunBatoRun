@@ -7,6 +7,7 @@ from obstacle import Obstacle
 from game_stats import GameStats
 from menu import MenuScreen
 from pause import PauseScreen
+from gameover import GameOverScreen
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "images")
 
@@ -125,7 +126,7 @@ class EndlessRunner:
             if obs.rect.right < 0:
                 self.obstacles.remove(obs)
             elif self.player.rect.colliderect(obs.rect):
-                self.stats.game_active = False
+                self._game_over()
 
     def _update_screen(self):
         self.screen.fill((70, 160, 210))
@@ -182,6 +183,24 @@ class EndlessRunner:
             if action == "quit":
                 pygame.quit()
                 sys.exit()
+    
+    def _game_over(self):
+        self._update_screen()  # draw final frame first so snapshot looks right
+        go     = GameOverScreen(self.screen, self.clock, self.stats.score)
+        result = go.run()
+        if result == "restart":
+            self._restart_game()
+        elif result == "menu":
+            self._restart_game()
+            from menu import MenuScreen
+            menu   = MenuScreen(self.screen, self.clock)
+            action = menu.run()
+            if action == "quit":
+                pygame.quit()
+                sys.exit()
+        elif result == "quit":
+            pygame.quit()
+            sys.exit()
 
 if __name__ == "__main__":
     game = EndlessRunner()
