@@ -8,6 +8,8 @@ from game_stats import GameStats
 from menu import MenuScreen
 from pause import PauseScreen
 from gameover import GameOverScreen
+from music import play as play_music, stop as stop_music
+from sfx import load as load_sfx, play as play_sfx
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "images")
 
@@ -39,13 +41,16 @@ class ParallaxLayer:
 
 class EndlessRunner:
     def __init__(self):
+        pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
         self.settings = Settings()
         self.screen   = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-        pygame.display.set_caption("Endless Runner")
+        pygame.display.set_caption("Run, Bato! Run!")
         self.clock    = pygame.time.Clock()
 
+        load_sfx()
         self._load_background()
+
         self.player      = Player(self)
         self.stats       = GameStats()
         self.obstacles   = []
@@ -73,12 +78,16 @@ class EndlessRunner:
         ]
 
         self.ground_color = (80, 120, 50)
+
     def run_game(self):
+        play_music("menu.mp3")
         menu   = MenuScreen(self.screen, self.clock)
         result = menu.run()
         if result == "quit":
             pygame.quit()
             sys.exit()
+
+        play_music("game.mp3")
 
         while True:
             self._check_events()
@@ -100,9 +109,7 @@ class EndlessRunner:
                 elif event.key == pygame.K_SPACE:
                     if self.stats.game_active:
                         self.player.jump()
-                elif event.key == pygame.K_e:
-                    if not self.stats.game_active:
-                        self._restart_game()
+                        play_sfx("jump")
 
     def _update_game(self):
         self.player.update()
@@ -151,16 +158,46 @@ class EndlessRunner:
         self.screen.blit(shadow, (22, 22))
         self.screen.blit(score,  (20, 20))
 
-        if not self.stats.game_active:
-            overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 150))
-            self.screen.blit(overlay, (0, 0))
-            go   = self.font.render("GAME OVER", True, (255, 80, 80))
-            hint = self.small_font.render("Press  E  to restart", True, (220, 220, 220))
-            self.screen.blit(go,   go.get_rect(center=(SCREEN_W//2, SCREEN_H//2 - 30)))
-            self.screen.blit(hint, hint.get_rect(center=(SCREEN_W//2, SCREEN_H//2 + 25)))
-
         pygame.display.flip()
+
+    def _pause_game(self):
+        self._update_screen()
+        pause  = PauseScreen(self.screen, self.clock)
+        result = pause.run()
+        if result == "resume":
+            pass
+        elif result == "menu":
+            self._restart_game()
+            play_music("menu.mp3")
+            menu   = MenuScreen(self.screen, self.clock)
+            action = menu.run()
+            if action == "quit":
+                pygame.quit()
+                sys.exit()
+            play_music("game.mp3")
+
+    def _game_over(self):
+        play_sfx("hit")
+        play_sfx("gameover")
+        play_music("gameover.mp3", loop=False)
+        self._update_screen()
+        go     = GameOverScreen(self.screen, self.clock, self.stats.score)
+        result = go.run()
+        if result == "restart":
+            self._restart_game()
+            play_music("game.mp3")
+        elif result == "menu":
+            self._restart_game()
+            play_music("menu.mp3")
+            menu   = MenuScreen(self.screen, self.clock)
+            action = menu.run()
+            if action == "quit":
+                pygame.quit()
+                sys.exit()
+            play_music("game.mp3")
+        elif result == "quit":
+            pygame.quit()
+            sys.exit()
 
     def _restart_game(self):
         self.settings.initialize_dynamic_settings()
@@ -172,35 +209,6 @@ class EndlessRunner:
         self.player.velocity_y  = 0
         self.spawn_timer        = 0
 
-    def _pause_game(self):
-        pause  = PauseScreen(self.screen, self.clock)
-        result = pause.run()
-        if result == "menu":
-            self._restart_game()
-            from menu import MenuScreen
-            menu   = MenuScreen(self.screen, self.clock)
-            action = menu.run()
-            if action == "quit":
-                pygame.quit()
-                sys.exit()
-    
-    def _game_over(self):
-        self._update_screen()  # draw final frame first so snapshot looks right
-        go     = GameOverScreen(self.screen, self.clock, self.stats.score)
-        result = go.run()
-        if result == "restart":
-            self._restart_game()
-        elif result == "menu":
-            self._restart_game()
-            from menu import MenuScreen
-            menu   = MenuScreen(self.screen, self.clock)
-            action = menu.run()
-            if action == "quit":
-                pygame.quit()
-                sys.exit()
-        elif result == "quit":
-            pygame.quit()
-            sys.exit()
 
 if __name__ == "__main__":
     game = EndlessRunner()
