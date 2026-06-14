@@ -10,11 +10,16 @@ from pause import PauseScreen
 from gameover import GameOverScreen
 from music import play as play_music, stop as stop_music
 from sfx import load as load_sfx, play as play_sfx
+from cutscene import CutsceneScreen
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "images")
+FONT_PATH = os.path.join(os.path.dirname(__file__), "assets", "fonts", "PressStart2P.ttf")
 
-SCREEN_W = 1200
-SCREEN_H = 800
+# Colours
+BLACK      = (  0,   0,   0)
+WHITE      = (255, 255, 255)
+YELLOW     = (255, 216,   0)
+YELLOW_DIM = (160, 130,   0)
 
 
 class ParallaxLayer:
@@ -39,14 +44,26 @@ class ParallaxLayer:
             x += self.img_w
 
 
+def make_scanlines(w, h):
+    surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    for y in range(0, h, 2):
+        pygame.draw.line(surf, (0, 0, 0, 40), (0, y), (w, y))
+    return surf
+
+
 class EndlessRunner:
     def __init__(self):
         pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
         self.settings = Settings()
-        self.screen   = pygame.display.set_mode((SCREEN_W, SCREEN_H))
+        self.screen   = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        global SCREEN_W, SCREEN_H
+        SCREEN_W, SCREEN_H = self.screen.get_size()
+        self.settings.screen_width  = SCREEN_W
+        self.settings.screen_height = SCREEN_H
+        self.settings.ground_y      = int(SCREEN_H * 0.81)
         pygame.display.set_caption("Run, Bato! Run!")
-        self.clock    = pygame.time.Clock()
+        self.clock = pygame.time.Clock()
 
         load_sfx()
         self._load_background()
@@ -55,9 +72,16 @@ class EndlessRunner:
         self.stats       = GameStats()
         self.obstacles   = []
         self.spawn_timer = 0
-        font_path       = os.path.join(os.path.dirname(__file__), "assets", "fonts", "PressStart2P.ttf")
-        self.font       = pygame.font.Font(font_path, 20)
-        self.small_font = pygame.font.Font(font_path, 12)
+
+        # Fonts
+        self.f_score = pygame.font.Font(FONT_PATH, 18)
+        self.f_small = pygame.font.Font(FONT_PATH, 11)
+
+        # Scanlines
+        self.scanlines = make_scanlines(SCREEN_W, SCREEN_H)
+
+        # NEW BEST flash
+        self.newbest_timer = 0
 
     def _load_background(self):
         def load(name):
@@ -77,9 +101,9 @@ class EndlessRunner:
             ParallaxLayer(load("bg_layer4.png"), 0.3,  layer_y),
             ParallaxLayer(load("bg_layer5.png"), 0.5,  layer_y),
         ]
-
         self.ground_color = (80, 120, 50)
 
+    # ── Game loop ─────────────────────────────────────────────────────────
     def run_game(self):
         play_music("menu.mp3")
         menu   = MenuScreen(self.screen, self.clock)
@@ -87,6 +111,9 @@ class EndlessRunner:
         if result == "quit":
             pygame.quit()
             sys.exit()
+            
+        cutscene = CutsceneScreen(self.screen, self.clock)
+        cutscene.run()
 
         play_music("game.mp3")
 
@@ -136,6 +163,42 @@ class EndlessRunner:
             elif self.player.rect.colliderect(obs.rect):
                 self._game_over()
 
+    # ── Drawing ───────────────────────────────────────────────────────────
+    def _draw_hud(self):
+        def outline(text, color, x, y):
+            for ox in [-1, 0, 1]:
+                for oy in [-1, 0, 1]:
+                    if ox == 0 and oy == 0:
+                        continue
+                    s = self.f_score.render(text, False, BLACK)
+                    self.screen.blit(s, (x + ox, y + oy))
+            s = self.f_score.render(text, False, color)
+            self.screen.blit(s, (x, y))
+
+        # Score box
+        score_txt  = f"SCORE  {self.stats.score:06d}"
+        best_txt   = f"BEST   {self.stats.best_score:06d}"
+
+        # Box background
+        box_w, box_h = 340, 70
+        box = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        box.fill((0, 0, 0, 140))
+        self.screen.blit(box, (16, 16))
+        pygame.draw.rect(self.screen, YELLOW, (16, 16, box_w, box_h), 2)
+
+        outline(score_txt, YELLOW, 26, 24)
+        outline(best_txt,  WHITE,  26, 50)
+
+        # NEW BEST flash
+        if self.stats.new_best:
+            self.newbest_timer += 1
+            if (self.newbest_timer // 10) % 2 == 0:
+                nb = self.f_small.render("★ NEW BEST! ★", False, YELLOW)
+                self.screen.blit(nb, nb.get_rect(center=(SCREEN_W // 2, 30)))
+            if self.newbest_timer > 180:
+                self.newbest_timer  = 0
+                self.stats.new_best = False
+
     def _update_screen(self):
         self.screen.fill((70, 160, 210))
         for layer in self.bg_layers:
@@ -143,31 +206,29 @@ class EndlessRunner:
 
         pygame.draw.rect(
             self.screen, self.ground_color,
-            (0, self.settings.ground_y, SCREEN_W, SCREEN_H - self.settings.ground_y)
+            (0, self.settings.ground_y,
+             SCREEN_W, SCREEN_H - self.settings.ground_y)
         )
         pygame.draw.line(
             self.screen, (40, 40, 42),
-            (0, self.settings.ground_y), (SCREEN_W, self.settings.ground_y), 3
+            (0, self.settings.ground_y),
+            (SCREEN_W, self.settings.ground_y), 3
         )
 
         self.player.draw()
         for obs in self.obstacles:
             obs.draw()
 
-        shadow = self.font.render(f"Score: {self.stats.score}", True, (0, 0, 0))
-        score  = self.font.render(f"Score: {self.stats.score}", True, (255, 255, 255))
-        self.screen.blit(shadow, (22, 22))
-        self.screen.blit(score,  (20, 20))
-
+        self._draw_hud()
+        self.screen.blit(self.scanlines, (0, 0))
         pygame.display.flip()
 
+    # ── State transitions ─────────────────────────────────────────────────
     def _pause_game(self):
         self._update_screen()
         pause  = PauseScreen(self.screen, self.clock)
         result = pause.run()
-        if result == "resume":
-            pass
-        elif result == "menu":
+        if result == "menu":
             self._restart_game()
             play_music("menu.mp3")
             menu   = MenuScreen(self.screen, self.clock)
@@ -178,11 +239,14 @@ class EndlessRunner:
             play_music("game.mp3")
 
     def _game_over(self):
+        self.stats.update_best()
         play_sfx("hit")
         play_sfx("gameover")
         play_music("gameover.mp3", loop=False)
         self._update_screen()
-        go     = GameOverScreen(self.screen, self.clock, self.stats.score)
+        go     = GameOverScreen(self.screen, self.clock,
+                                self.stats.score, self.stats.best_score,
+                                self.stats.new_best)
         result = go.run()
         if result == "restart":
             self._restart_game()
@@ -209,6 +273,7 @@ class EndlessRunner:
         self.player.rect.bottom = self.settings.ground_y
         self.player.velocity_y  = 0
         self.spawn_timer        = 0
+        self.newbest_timer      = 0
 
 
 if __name__ == "__main__":
