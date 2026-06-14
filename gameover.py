@@ -46,6 +46,7 @@ class GameOverScreen:
         self.blink_visible = True
         self.flicker_timer = 0
         self.newbest_timer = 0
+        self.button_rects = []
 
     def _make_blurred_bg(self):
         snapshot = self.screen.copy()
@@ -116,16 +117,19 @@ class GameOverScreen:
         gap    = int(ph * 0.03)
         bx     = SCREEN_W//2 - bw//2
         start_y = py + int(ph * 0.50)
+        self.button_rects = []
 
         for i, opt in enumerate(self.options):
             by     = start_y + i * (bh + gap)
+            rect   = pygame.Rect(bx, by, bw, bh)
+            self.button_rects.append(rect)
             bcx    = bx + bw//2
             bcy    = by + bh//2
             active = i == self.selected
             bg     = (60, 20, 20) if active else (28, 28, 38)
             border = RED if active else (55, 55, 75)
-            pygame.draw.rect(self.screen, bg,     (bx, by, bw, bh))
-            pygame.draw.rect(self.screen, border, (bx, by, bw, bh), 2)
+            pygame.draw.rect(self.screen, bg,     rect)
+            pygame.draw.rect(self.screen, border, rect, 2)
             label = f"{cursor} {opt}" if active else f"  {opt}"
             color = RED if active else LIGHT_GREY
             self._outline(self.f_btn, label, color, bcx, bcy, d=1)
@@ -138,6 +142,22 @@ class GameOverScreen:
         self.screen.blit(self.scanlines, (0, 0))
         pygame.display.flip()
 
+    def _select_with_mouse(self, pos):
+        for i, rect in enumerate(self.button_rects):
+            if rect.collidepoint(pos):
+                self.selected = i
+                return True
+        return False
+
+    def _selected_action(self):
+        if self.selected == 0:
+            return "restart"
+        if self.selected == 1:
+            return "menu"
+        if self.selected == 2:
+            return "quit"
+        return None
+
     def run(self):
         while True:
             for event in pygame.event.get():
@@ -149,9 +169,12 @@ class GameOverScreen:
                     elif event.key == pygame.K_DOWN:
                         self.selected = (self.selected + 1) % len(self.options)
                     elif event.key == pygame.K_RETURN:
-                        if self.selected == 0:   return "restart"
-                        elif self.selected == 1: return "menu"
-                        elif self.selected == 2: return "quit"
+                        return self._selected_action()
+                elif event.type == pygame.MOUSEMOTION:
+                    self._select_with_mouse(event.pos)
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self._select_with_mouse(event.pos):
+                        return self._selected_action()
 
             self._draw()
             self.clock.tick(60)

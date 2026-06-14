@@ -4,6 +4,7 @@ import os
 AUDIO_DIR = os.path.join(os.path.dirname(__file__), "assets", "audio")
 
 _sounds = {}
+_volume = 0.4
 
 def load():
     files = {
@@ -15,8 +16,14 @@ def load():
         path = os.path.join(AUDIO_DIR, filename)
         if os.path.exists(path):
             _sounds[key] = pygame.mixer.Sound(path)
-            _sounds[key].set_volume(0.4)
+            _sounds[key].set_volume(_volume)
 
 def play(name):
     if name in _sounds:
         _sounds[name].play()
+
+def set_volume(vol):
+    global _volume
+    _volume = max(0.0, min(1.0, vol))
+    for sound in _sounds.values():
+        sound.set_volume(_volume)

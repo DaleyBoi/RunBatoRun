@@ -4,6 +4,9 @@ class Settings:
         self.screen_height = 800
         self.bg_color = (135, 206, 235)
         self.fps = 60
+        self.sound_volume = 0.4
+        self.music_volume = 0.5
+        self.fullscreen = True
 
         self.ground_y = 650
 

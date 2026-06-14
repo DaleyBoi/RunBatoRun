@@ -33,3 +33,12 @@ class GameStats:
                 f.write(str(self.best_score))
         except Exception:
             pass
+
+    def delete_save_data(self):
+        self.best_score = 0
+        self.new_best = False
+        try:
+            with open(SAVE_FILE, "w") as f:
+                f.write("0")
+        except Exception:
+            pass

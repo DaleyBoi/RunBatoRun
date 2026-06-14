@@ -8,8 +8,10 @@ from game_stats import GameStats
 from menu import MenuScreen
 from pause import PauseScreen
 from gameover import GameOverScreen
-from music import play as play_music, stop as stop_music
+from music import play as play_music, fadeout as fadeout_music
+from music import set_volume as set_music_volume
 from sfx import load as load_sfx, play as play_sfx
+from sfx import set_volume as set_sfx_volume
 from cutscene import CutsceneScreen
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "images")
@@ -66,6 +68,7 @@ class EndlessRunner:
         self.clock = pygame.time.Clock()
 
         load_sfx()
+        self._apply_audio_settings()
         self._load_background()
 
         self.player      = Player(self)
@@ -103,14 +106,38 @@ class EndlessRunner:
         ]
         self.ground_color = (80, 120, 50)
 
+    def _apply_audio_settings(self):
+        set_sfx_volume(self.settings.sound_volume)
+        set_music_volume(self.settings.music_volume)
+
+    def _toggle_fullscreen(self):
+        self.settings.fullscreen = not self.settings.fullscreen
+        if self.settings.fullscreen:
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        else:
+            self.screen = pygame.display.set_mode((1200, 800))
+
+        global SCREEN_W, SCREEN_H
+        SCREEN_W, SCREEN_H = self.screen.get_size()
+        self.settings.screen_width = SCREEN_W
+        self.settings.screen_height = SCREEN_H
+        self.settings.ground_y = int(SCREEN_H * 0.81)
+        self.scanlines = make_scanlines(SCREEN_W, SCREEN_H)
+        self._load_background()
+        if hasattr(self, "player"):
+            self.player.rect.bottom = self.settings.ground_y
+        return self.screen
+
     # ── Game loop ─────────────────────────────────────────────────────────
     def run_game(self):
-        play_music("menu.mp3")
-        menu   = MenuScreen(self.screen, self.clock)
+        play_music("menu_music.mp3")
+        menu   = MenuScreen(self.screen, self.clock, self.settings, self.stats,
+                            self._apply_audio_settings, self._toggle_fullscreen)
         result = menu.run()
         if result == "quit":
             pygame.quit()
             sys.exit()
+        fadeout_music(1000)
             
         cutscene = CutsceneScreen(self.screen, self.clock)
         cutscene.run()
@@ -226,16 +253,19 @@ class EndlessRunner:
     # ── State transitions ─────────────────────────────────────────────────
     def _pause_game(self):
         self._update_screen()
-        pause  = PauseScreen(self.screen, self.clock)
+        pause  = PauseScreen(self.screen, self.clock, self.settings,
+                             self._apply_audio_settings, self._toggle_fullscreen)
         result = pause.run()
         if result == "menu":
             self._restart_game()
-            play_music("menu.mp3")
-            menu   = MenuScreen(self.screen, self.clock)
+            play_music("menu_music.mp3")
+            menu   = MenuScreen(self.screen, self.clock, self.settings, self.stats,
+                                self._apply_audio_settings, self._toggle_fullscreen)
             action = menu.run()
             if action == "quit":
                 pygame.quit()
                 sys.exit()
+            fadeout_music(1000)
             play_music("game.mp3")
 
     def _game_over(self):
@@ -253,12 +283,14 @@ class EndlessRunner:
             play_music("game.mp3")
         elif result == "menu":
             self._restart_game()
-            play_music("menu.mp3")
-            menu   = MenuScreen(self.screen, self.clock)
+            play_music("menu_music.mp3")
+            menu   = MenuScreen(self.screen, self.clock, self.settings, self.stats,
+                                self._apply_audio_settings, self._toggle_fullscreen)
             action = menu.run()
             if action == "quit":
                 pygame.quit()
                 sys.exit()
+            fadeout_music(1000)
             play_music("game.mp3")
         elif result == "quit":
             pygame.quit()
@@ -277,5 +309,6 @@ class EndlessRunner:
 
 
 if __name__ == "__main__":
+    
     game = EndlessRunner()
     game.run_game()

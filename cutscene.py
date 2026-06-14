@@ -14,8 +14,8 @@ PANELS = [
     ("cut_p1.png", "Isang araw sa Senado ng Pilipinas..."),
     ("cut_p2.png", "Nag-aaway na naman ang mga senador..."),
     ("cut_p3.png", "Si Bato ay tumayo para magsalita..."),
-    ("cut_p4.png", "NAHULOG SA HAGDAN."),
-    ("cut_p5.png", "Habang nahuhulog siya... !"),
+    ("cut_p4.png", "Habang siya ay nag sasalita..."),
+    ("cut_p5.png", "Bigla siyang NAHULOG...!"),
     ("cut_p6.png", "Sa isang PORTAL...!"),
     ("cut_p7.png", "Napunta siya sa lugar na hindi niya alam..."),
     ("cut_p8.png", "Kaya ngayon... kailangan niyang tumakbo."),
@@ -54,6 +54,7 @@ class CutsceneScreen:
         # text box
         self.box_h   = int(self.SH * 0.18)
         self.box_y   = self.panel_y + panel_h + int(self.SH * 0.02)
+        self.skip_requested = False
 
     # ── helpers ───────────────────────────────────────────────────────────
     def _make_scanlines(self):
@@ -72,6 +73,15 @@ class CutsceneScreen:
         s = font.render(text, False, color)
         self.screen.blit(s, s.get_rect(center=(cx, cy)))
 
+    def _handle_cutscene_event(self, event):
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+            self.skip_requested = True
+            return True
+        return False
+
     def _fade(self, direction, duration=400):
         """direction: 'in' = black→scene, 'out' = scene→black"""
         overlay = pygame.Surface((self.SW, self.SH))
@@ -79,13 +89,15 @@ class CutsceneScreen:
         steps  = 30
         delay  = duration // steps
         for i in range(steps + 1):
+            for event in pygame.event.get():
+                if self._handle_cutscene_event(event):
+                    return False
             alpha = int(255 * (1 - i/steps)) if direction == 'in' else int(255 * i/steps)
             overlay.set_alpha(alpha)
             self.screen.blit(overlay, (0, 0))
             pygame.display.flip()
             pygame.time.delay(delay)
-            # flush events during fade
-            pygame.event.pump()
+        return True
 
     # ── word by word text reveal ──────────────────────────────────────────
     def _reveal_text(self, text, panel_idx):
@@ -111,8 +123,8 @@ class CutsceneScreen:
                 last_word_time  = now
 
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit(); sys.exit()
+                if self._handle_cutscene_event(event):
+                    return False
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         if word_idx < len(words):
@@ -133,7 +145,7 @@ class CutsceneScreen:
             # show "SPACE" hint only when all words revealed
             if word_idx >= len(words):
                 hint = self.f_hint.render(
-                    "[ SPACE ] next", False, (80, 80, 80)
+                    "[ SPACE ] next    [ ENTER ] skip", False, (80, 80, 80)
                 )
                 self.screen.blit(hint, hint.get_rect(
                     bottomright=(self.panel_x + self.panel_w - 10,
@@ -259,14 +271,14 @@ class CutsceneScreen:
                 if hold_start is None:
                     hold_start = now
                 if now - hold_start > 2000:
-                    return
+                    return True
 
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit(); sys.exit()
+                if self._handle_cutscene_event(event):
+                    return False
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
-                        return
+                        return True
 
             # Draw
             self.screen.fill(BLACK)
@@ -312,11 +324,17 @@ class CutsceneScreen:
         pygame.time.delay(300)
 
         for i, (img, text) in enumerate(self.panels):
-            self._fade('in', 350)
-            self._reveal_text(text, i)
-            self._fade('out', 350)
+            if not self._fade('in', 350):
+                return
+            if not self._reveal_text(text, i):
+                return
+            if not self._fade('out', 350):
+                return
 
         # title reveal
         pygame.time.delay(200)
-        self._title_reveal()
+        if self.skip_requested:
+            return
+        if not self._title_reveal():
+            return
         self._fade('out', 600)
