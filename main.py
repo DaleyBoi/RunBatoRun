@@ -6,12 +6,11 @@ from player import Player
 from obstacle import Obstacle
 from game_stats import GameStats
 from menu import MenuScreen
+from mode_select import ModeSelectScreen
 from pause import PauseScreen
 from gameover import GameOverScreen
-from music import play as play_music, fadeout as fadeout_music
-from music import set_volume as set_music_volume
+from music import play as play_music, stop as stop_music
 from sfx import load as load_sfx, play as play_sfx
-from sfx import set_volume as set_sfx_volume
 from cutscene import CutsceneScreen
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets", "images")
@@ -68,7 +67,6 @@ class EndlessRunner:
         self.clock = pygame.time.Clock()
 
         load_sfx()
-        self._apply_audio_settings()
         self._load_background()
 
         self.player      = Player(self)
@@ -90,7 +88,7 @@ class EndlessRunner:
         def load(name):
             return pygame.image.load(
                 os.path.join(ASSET_DIR, name)
-            ).convert_alpha()
+            ).convert_alpha()   
 
         src_h    = 324
         scale    = SCREEN_W / 576
@@ -106,43 +104,14 @@ class EndlessRunner:
         ]
         self.ground_color = (80, 120, 50)
 
-    def _apply_audio_settings(self):
-        set_sfx_volume(self.settings.sound_volume)
-        set_music_volume(self.settings.music_volume)
-
-    def _toggle_fullscreen(self):
-        self.settings.fullscreen = not self.settings.fullscreen
-        if self.settings.fullscreen:
-            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-        else:
-            self.screen = pygame.display.set_mode((1200, 800))
-
-        global SCREEN_W, SCREEN_H
-        SCREEN_W, SCREEN_H = self.screen.get_size()
-        self.settings.screen_width = SCREEN_W
-        self.settings.screen_height = SCREEN_H
-        self.settings.ground_y = int(SCREEN_H * 0.81)
-        self.scanlines = make_scanlines(SCREEN_W, SCREEN_H)
-        self._load_background()
-        if hasattr(self, "player"):
-            self.player.rect.bottom = self.settings.ground_y
-        return self.screen
-
     # ── Game loop ─────────────────────────────────────────────────────────
     def run_game(self):
         play_music("menu_music.mp3")
-        menu   = MenuScreen(self.screen, self.clock, self.settings, self.stats,
-                            self._apply_audio_settings, self._toggle_fullscreen)
-        result = menu.run()
-        if result == "quit":
-            pygame.quit()
-            sys.exit()
-        fadeout_music(1000)
+        self._show_main_menu()
+        stop_music()
             
         cutscene = CutsceneScreen(self.screen, self.clock)
         cutscene.run()
-
-        play_music("game.mp3")
 
         while True:
             self._check_events()
@@ -150,6 +119,25 @@ class EndlessRunner:
                 self._update_game()
             self._update_screen()
             self.clock.tick(self.settings.fps)
+
+    def _show_main_menu(self):
+        while True:
+            menu = MenuScreen(self.screen, self.clock)
+            result = menu.run()
+            if result == "quit":
+                pygame.quit()
+                sys.exit()
+
+            mode_select = ModeSelectScreen(self.screen, self.clock)
+            mode = mode_select.run()
+            if mode == "quit":
+                pygame.quit()
+                sys.exit()
+            if mode == "back":
+                continue
+
+            self.stats.game_mode = mode
+            return
 
     def _check_events(self):
         for event in pygame.event.get():
@@ -253,26 +241,18 @@ class EndlessRunner:
     # ── State transitions ─────────────────────────────────────────────────
     def _pause_game(self):
         self._update_screen()
-        pause  = PauseScreen(self.screen, self.clock, self.settings,
-                             self._apply_audio_settings, self._toggle_fullscreen)
+        pause  = PauseScreen(self.screen, self.clock)
         result = pause.run()
         if result == "menu":
             self._restart_game()
             play_music("menu_music.mp3")
-            menu   = MenuScreen(self.screen, self.clock, self.settings, self.stats,
-                                self._apply_audio_settings, self._toggle_fullscreen)
-            action = menu.run()
-            if action == "quit":
-                pygame.quit()
-                sys.exit()
-            fadeout_music(1000)
-            play_music("game.mp3")
+            self._show_main_menu()
+            stop_music()
 
     def _game_over(self):
         self.stats.update_best()
         play_sfx("hit")
         play_sfx("gameover")
-        play_music("gameover.mp3", loop=False)
         self._update_screen()
         go     = GameOverScreen(self.screen, self.clock,
                                 self.stats.score, self.stats.best_score,
@@ -280,18 +260,11 @@ class EndlessRunner:
         result = go.run()
         if result == "restart":
             self._restart_game()
-            play_music("game.mp3")
         elif result == "menu":
             self._restart_game()
             play_music("menu_music.mp3")
-            menu   = MenuScreen(self.screen, self.clock, self.settings, self.stats,
-                                self._apply_audio_settings, self._toggle_fullscreen)
-            action = menu.run()
-            if action == "quit":
-                pygame.quit()
-                sys.exit()
-            fadeout_music(1000)
-            play_music("game.mp3")
+            self._show_main_menu()
+            stop_music()
         elif result == "quit":
             pygame.quit()
             sys.exit()

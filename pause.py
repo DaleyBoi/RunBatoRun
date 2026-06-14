@@ -180,8 +180,8 @@ class PauseScreen:
             label_x = bx + int(bw * 0.18)
             control_x = bx + int(bw * 0.48)
             slider_w = int(bw * 0.34)
-            row_y = by + int(bh * 0.42)
-            row_gap = int(bh * 0.17)
+            row_y = by + int(bh * 0.46)
+            row_gap = int(bh * 0.20)
 
             for i, label in enumerate(("Sound", "Music")):
                 cy = row_y + i * row_gap
@@ -203,25 +203,6 @@ class PauseScreen:
                                  (knob_x - 6, cy - 14, 12, 28))
                 pygame.draw.rect(self.screen, BLACK,
                                  (knob_x - 6, cy - 14, 12, 28), 1)
-
-            checkbox_y = row_y + 2 * row_gap
-            box_size = int(SCREEN_H * 0.035)
-            checkbox_rect = pygame.Rect(control_x, checkbox_y - box_size//2,
-                                        box_size, box_size)
-            self.option_rects["fullscreen"] = checkbox_rect
-            self._outline_text(f_sub, "Fullscreen", WHITE,
-                               label_x + int(bw * 0.04), checkbox_y, d=1)
-            pygame.draw.rect(self.screen, (20, 20, 30),
-                             checkbox_rect)
-            pygame.draw.rect(self.screen, YELLOW,
-                             checkbox_rect, 2)
-            if getattr(self.settings, "fullscreen", True):
-                pygame.draw.line(self.screen, WHITE,
-                                 (control_x + 7, checkbox_y),
-                                 (control_x + box_size//2 - 1, checkbox_y + 8), 3)
-                pygame.draw.line(self.screen, WHITE,
-                                 (control_x + box_size//2 - 1, checkbox_y + 8),
-                                 (control_x + box_size - 7, checkbox_y - 9), 3)
 
             self._outline_text(f_hint, "ESC / ENTER to close",
                                (100,100,100), cx, by + int(bh * 0.88), d=1)
@@ -249,13 +230,6 @@ class PauseScreen:
             self.dragging_slider = "music_volume"
             self._set_slider_value("music_volume", pos[0])
             return
-        if "fullscreen" in self.option_rects and self.option_rects["fullscreen"].collidepoint(pos):
-            if self.toggle_fullscreen:
-                self.screen = self.toggle_fullscreen()
-                self._refresh_display()
-            elif self.settings:
-                self.settings.fullscreen = not self.settings.fullscreen
-
     def _handle_main_mouse_down(self, pos):
         for i, rect in enumerate(self.button_rects):
             if rect.collidepoint(pos):

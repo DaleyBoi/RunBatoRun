@@ -6,6 +6,7 @@ SAVE_FILE = os.path.join(os.path.dirname(__file__), "best_score.txt")
 class GameStats:
     def __init__(self):
         self.best_score  = self._load_best()
+        self.game_mode   = "story"
         self.reset_stats()
         self.game_active = True
         self.new_best    = False

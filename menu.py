@@ -147,6 +147,9 @@ class MenuScreen:
         self.button_rects = []
         self.option_rects = {}
         self.dragging_slider = None
+        self.pressed_option = None
+        self.confirm_delete = False
+        self.confirm_selected = 1
 
     def _refresh_display(self):
         global SCREEN_W, SCREEN_H
@@ -341,15 +344,74 @@ class MenuScreen:
         delete_rect = pygame.Rect(delete_x, delete_y - delete_h//2,
                                   delete_w, delete_h)
         self.option_rects["delete_save"] = delete_rect
-        pygame.draw.rect(self.screen, (65, 28, 34),
-                         delete_rect)
+        mouse_pos = pygame.mouse.get_pos()
+        delete_hovered = delete_rect.collidepoint(mouse_pos)
+        delete_pressed = self.pressed_option == "delete_save" and delete_hovered
+        delete_offset = 3 if delete_pressed else 0
+        shadow_rect = delete_rect.move(4, 5)
+        draw_rect = delete_rect.move(0, delete_offset)
+        fill_color = (95, 34, 42) if delete_hovered else (65, 28, 34)
+        border_color = WHITE if delete_hovered else RED
+
+        pygame.draw.rect(self.screen, (18, 12, 16), shadow_rect)
+        pygame.draw.rect(self.screen, fill_color, draw_rect)
         pygame.draw.rect(self.screen, RED,
-                         delete_rect, 2)
+                         draw_rect.move(0, 4), 2)
+        pygame.draw.rect(self.screen, border_color,
+                         draw_rect, 2)
         self._outline_text(self.f_sub, "Delete Save Data", RED,
-                           SCREEN_W//2, delete_y, BLACK, 1)
+                           SCREEN_W//2, delete_y + delete_offset, BLACK, 1)
 
         self._outline_text(self.f_hint, "ESC / ENTER to close",
                            LIGHT_GREY, SCREEN_W//2, by + int(bh * 0.92), BLACK, 1)
+
+        if self.confirm_delete:
+            self._draw_delete_confirm()
+
+    def _draw_delete_confirm(self):
+        fw = int(SCREEN_W * 0.34)
+        fh = int(SCREEN_H * 0.22)
+        fx = SCREEN_W//2 - fw//2
+        fy = SCREEN_H//2 - fh//2
+
+        shade = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        shade.fill((0, 0, 0, 90))
+        self.screen.blit(shade, (0, 0))
+
+        pygame.draw.rect(self.screen, (45, 22, 28), (fx + 5, fy + 6, fw, fh))
+        pygame.draw.rect(self.screen, (75, 28, 36), (fx, fy, fw, fh))
+        pygame.draw.rect(self.screen, RED, (fx, fy, fw, fh), 3)
+        pygame.draw.rect(self.screen, (120, 45, 50),
+                         (fx + 7, fy + 7, fw - 14, fh - 14), 1)
+
+        self._outline_text(self.f_btn, "ARE YOU SURE?",
+                           WHITE, SCREEN_W//2, fy + int(fh * 0.28), BLACK, 2)
+        self._outline_text(self.f_hint, "Delete saved score?",
+                           LIGHT_GREY, SCREEN_W//2, fy + int(fh * 0.45), BLACK, 1)
+
+        btn_w = int(fw * 0.30)
+        btn_h = int(fh * 0.25)
+        gap = int(fw * 0.08)
+        start_x = SCREEN_W//2 - btn_w - gap//2
+        by = fy + int(fh * 0.62)
+        labels = ("YES", "NO")
+        mouse_pos = pygame.mouse.get_pos()
+
+        for i, label in enumerate(labels):
+            bx = start_x + i * (btn_w + gap)
+            rect = pygame.Rect(bx, by, btn_w, btn_h)
+            self.option_rects[f"confirm_{label.lower()}"] = rect
+            hovered = rect.collidepoint(mouse_pos)
+            active = i == self.confirm_selected or hovered
+            fill = (95, 34, 42) if active else (35, 28, 38)
+            border = WHITE if hovered else (YELLOW if active else (80, 55, 65))
+            color = RED if label == "YES" else YELLOW
+
+            pygame.draw.rect(self.screen, (15, 10, 12), rect.move(3, 4))
+            pygame.draw.rect(self.screen, fill, rect)
+            pygame.draw.rect(self.screen, border, rect, 2)
+            self._outline_text(self.f_sub, label, color,
+                               rect.centerx, rect.centery, BLACK, 1)
 
     def _set_slider_value(self, name, mouse_x):
         if not self.settings or name not in self.option_rects:
@@ -378,8 +440,34 @@ class MenuScreen:
                 self.settings.fullscreen = not self.settings.fullscreen
             return
         if "delete_save" in self.option_rects and self.option_rects["delete_save"].collidepoint(pos):
-            if self.stats:
-                self.stats.delete_save_data()
+            self.pressed_option = "delete_save"
+            self.confirm_delete = True
+            self.confirm_selected = 1
+
+    def _choose_delete_confirm(self):
+        if self.confirm_selected == 0 and self.stats:
+            self.stats.delete_save_data()
+        self.confirm_delete = False
+        self.pressed_option = None
+
+    def _handle_confirm_mouse_down(self, pos):
+        yes_rect = self.option_rects.get("confirm_yes")
+        no_rect = self.option_rects.get("confirm_no")
+        if yes_rect and yes_rect.collidepoint(pos):
+            self.confirm_selected = 0
+            self._choose_delete_confirm()
+            return
+        if no_rect and no_rect.collidepoint(pos):
+            self.confirm_selected = 1
+            self._choose_delete_confirm()
+
+    def _handle_confirm_mouse_motion(self, pos):
+        yes_rect = self.option_rects.get("confirm_yes")
+        no_rect = self.option_rects.get("confirm_no")
+        if yes_rect and yes_rect.collidepoint(pos):
+            self.confirm_selected = 0
+        elif no_rect and no_rect.collidepoint(pos):
+            self.confirm_selected = 1
 
     def _handle_main_mouse_down(self, pos):
         for i, rect in enumerate(self.button_rects):
@@ -401,8 +489,19 @@ class MenuScreen:
                     return "quit"
                 if event.type == pygame.KEYDOWN:
                     if self.show_options:
-                        if event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                        if self.confirm_delete:
+                            if event.key in (pygame.K_LEFT, pygame.K_RIGHT,
+                                             pygame.K_UP, pygame.K_DOWN):
+                                self.confirm_selected = 1 - self.confirm_selected
+                            elif event.key == pygame.K_RETURN:
+                                self._choose_delete_confirm()
+                            elif event.key == pygame.K_ESCAPE:
+                                self.confirm_selected = 1
+                                self.confirm_delete = False
+                        elif event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                             self.show_options = False
+                            self.confirm_delete = False
+                            self.pressed_option = None
                     else:
                         if event.key == pygame.K_UP:
                             self.selected = (self.selected - 1) % len(self.options)
@@ -415,7 +514,9 @@ class MenuScreen:
                         elif event.key == pygame.K_ESCAPE:
                             return "quit"
                 elif event.type == pygame.MOUSEMOTION:
-                    if self.show_options and self.dragging_slider:
+                    if self.show_options and self.confirm_delete:
+                        self._handle_confirm_mouse_motion(event.pos)
+                    elif self.show_options and self.dragging_slider:
                         self._set_slider_value(self.dragging_slider, event.pos[0])
                     elif not self.show_options:
                         for i, rect in enumerate(self.button_rects):
@@ -423,13 +524,17 @@ class MenuScreen:
                                 self.selected = i
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if self.show_options:
-                        self._handle_options_mouse_down(event.pos)
+                        if self.confirm_delete:
+                            self._handle_confirm_mouse_down(event.pos)
+                        else:
+                            self._handle_options_mouse_down(event.pos)
                     else:
                         action = self._handle_main_mouse_down(event.pos)
                         if action:
                             return action
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self.dragging_slider = None
+                    self.pressed_option = None
 
             for layer in self.bg_layers:
                 layer.update()
